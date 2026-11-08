@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chess</title>
+<style>
+:root{--bg:#f4f1ea;--fg:#222;--card:#fff;--l:#f0d9b5;--d:#b58863;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1b1a;--fg:#eee;--card:#2a2826}}
+:root[data-theme="dark"]{--bg:#1c1b1a;--fg:#eee;--card:#2a2826}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}
+h1{margin:0;font-size:22px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
+select,button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid #8886;background:var(--card);color:var(--fg)}
+button{cursor:pointer}button:active{transform:scale(.97)}
+label{display:flex;gap:6px;align-items:center;font-size:14px}
+#st{font-weight:600;min-height:24px;text-align:center}
+#bd{display:grid;grid-template-columns:repeat(8,1fr);width:min(94vw,520px);aspect-ratio:1;border:4px solid #5b4636;border-radius:6px;overflow:hidden;touch-action:manipulation}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;font-size:min(9.6vw,52px);cursor:pointer;user-select:none}
+.sq.l{background-color:var(--l)}.sq.d{background-color:var(--d)}
+.sq span{pointer-events:none;line-height:1}
+.w{color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 3px #000}
+.b{color:#161616;text-shadow:0 0 1px #fff6}
+.sq.last{background-image:linear-gradient(rgba(250,220,60,.45),rgba(250,220,60,.45))}
+.sq.chk{background-image:radial-gradient(circle,rgba(239,68,68,.95) 20%,rgba(239,68,68,0) 75%)}
+.sq.sel{background-color:#60a5fa;background-image:none}
+.sq.hint::after{content:"";position:absolute;inset:0;margin:auto;width:30%;height:30%;border-radius:50%;background:rgba(37,99,235,.75)}
+.sq.hint.cap::after{width:86%;height:86%;background:none;border:5px solid rgba(37,99,235,.8)}
+.sq.bad{animation:bad .7s}
+@keyframes bad{0%,60%{background-color:#ef4444;background-image:none}}
+.note{font-size:13px;opacity:.7;text-align:center;max-width:520px}
+</style></head><body>
+<h1>♟ Chess</h1>
+<div class="bar">
+<select id="mode"><option value="easy">Easy</option><option value="mid">Intermediate</option><option value="hard">Hard</option></select>
+<label><input type="checkbox" id="hint" checked> Hints</label>
+<button id="undo">Undo</button><button id="new">New game</button>
+</div>
+<div id="st"></div>
+<div id="bd"></div>
+<div class="note">You play White. Blue dots = valid moves, red flash = wrong move. Pawns auto-promote to Queen.</div>
+<script>
+const G={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'},V={P:100,N:320,B:330,R:500,Q:900,K:0};
+const DN=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]],DK=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]],RD=[[-1,0],[1,0],[0,-1],[0,1]],BD=[[-1,-1],[-1,1],[1,-1],[1,1]];
+const ok=(r,f)=>r>=0&&r<8&&f>=0&&f<8;
+function init(){const b=[],k='RNBQKBNR';for(let i=0;i<64;i++)b[i]=i<8?'b'+k[i]:i<16?'bP':i>=56?'w'+k[i-56]:i>=48?'wP':null;return{b,t:'w',cr:{wK:1,wQ:1,bK:1,bQ:1},ep:-1}}
+function att(b,s,by){const r=s>>3,f=s&7,pr=by=='w'?r+1:r-1;
+for(const d of[-1,1])if(ok(pr,f+d)&&b[pr*8+f+d]==by+'P')return 1;
+for(const[a,c]of DN)if(ok(r+a,f+c)&&b[(r+a)*8+f+c]==by+'N')return 1;
+for(const[a,c]of DK)if(ok(r+a,f+c)&&b[(r+a)*8+f+c]==by+'K')return 1;
+for(const[ds,ts]of[[RD,'RQ'],[BD,'BQ']])for(const[a,c]of ds){let rr=r+a,ff=f+c;while(ok(rr,ff)){const p=b[rr*8+ff];if(p){if(p[0]==by&&ts.includes(p[1]))return 1;break}rr+=a;ff+=c}}
+return 0}
+function pseudo(s,c){const b=s.b,m=[],o=c=='w'?'b':'w';
+for(let i=0;i<64;i++){const p=b[i];if(!p||p[0]!=c)continue;const t=p[1],r=i>>3,f=i&7;
+if(t=='P'){const d=c=='w'?-1:1,r1=r+d;if(r1<0||r1>7)continue;
+if(!b[r1*8+f]){m.push({f:i,t:r1*8+f});if(r==(c=='w'?6:1)&&!b[(r+2*d)*8+f])m.push({f:i,t:(r+2*d)*8+f,dp:1})}
+for(const e of[-1,1]){if(!ok(r1,f+e))continue;const to=r1*8+f+e;if(b[to]&&b[to][0]!=c)m.push({f:i,t:to});else if(to==s.ep)m.push({f:i,t:to,ep:1})}}
+else if(t=='N'||t=='K'){for(const[a,e]of(t=='N'?DN:DK)){if(!ok(r+a,f+e))continue;const to=(r+a)*8+f+e;if(!b[to]||b[to][0]!=c)m.push({f:i,t:to})}
+if(t=='K'){const h=c=='w'?60:4;if(i==h&&!att(b,h,o)){
+if(s.cr[c+'K']&&!b[h+1]&&!b[h+2]&&b[h+3]==c+'R'&&!att(b,h+1,o)&&!att(b,h+2,o))m.push({f:i,t:h+2,cs:1});
+if(s.cr[c+'Q']&&!b[h-1]&&!b[h-2]&&!b[h-3]&&b[h-4]==c+'R'&&!att(b,h-1,o)&&!att(b,h-2,o))m.push({f:i,t:h-2,cs:1})}}}
+else{for(const[a,e]of(t=='R'?RD:t=='B'?BD:RD.concat(BD))){let rr=r+a,ff=f+e;while(ok(rr,ff)){const to=rr*8+ff;if(b[to]){if(b[to][0]!=c)m.push({f:i,t:to});break}m.push({f:i,t:to});rr+=a;ff+=e}}}}
+return m}
+function app(s,m){const b=s.b.slice(),p=b[m.f],c=p[0],cr={...s.cr};let ep=-1;
+b[m.t]=p;b[m.f]=null;if(m.ep)b[m.t+(c=='w'?8:-8)]=null;
+if(p[1]=='P'){const r=m.t>>3;if(r==0||r==7)b[m.t]=c+'Q';if(m.dp)ep=(m.f+m.t)/2}
+if(m.cs){if(m.t>m.f){b[m.f+1]=b[m.f+3];b[m.f+3]=null}else{b[m.f-1]=b[m.f-4];b[m.f-4]=null}}
+if(p[1]=='K')cr[c+'K']=cr[c+'Q']=0;
+for(const q of[m.f,m.t]){if(q==63)cr.wK=0;if(q==56)cr.wQ=0;if(q==7)cr.bK=0;if(q==0)cr.bQ=0}
+return{b,t:c=='w'?'b':'w',cr,ep}}
+const opp=c=>c=='w'?'b':'w';
+const inChk=s=>att(s.b,s.b.indexOf(s.t+'K'),opp(s.t));
+const legal=s=>pseudo(s,s.t).filter(m=>{const n=app(s,m);return !att(n.b,n.b.indexOf(s.t+'K'),opp(s.t))});
+function ev(s){let v=0;for(let i=0;i<64;i++){const p=s.b[i];if(!p)continue;const r=i>>3,f=i&7,ce=7-(Math.abs(r-3.5)+Math.abs(f-3.5)),w=p[0]=='w';
+let x=V[p[1]];if(p[1]=='N'||p[1]=='B')x+=ce*4;else if(p[1]=='P')x+=ce*2+(w?6-r:r-1)*5;else if(p[1]=='Q')x+=ce;
+v+=w?x:-x}return v}
+const sc=(s,m)=>s.b[m.t]?V[s.b[m.t][1]]*10-V[s.b[m.f][1]]:0;
+function nm(s,d,a,b){const ms=legal(s);if(!ms.length)return inChk(s)?-99999-d:0;if(!d)return ev(s)*(s.t=='w'?1:-1);
+ms.sort((x,y)=>sc(s,y)-sc(s,x));let best=-1e9;
+for(const m of ms){const v=-nm(app(s,m),d-1,-b,-a);if(v>best)best=v;if(v>a)a=v;if(a>=b)break}return best}
+function pick(s,mode){const ms=legal(s);
+if(mode=='easy'){const cp=ms.filter(m=>s.b[m.t]);return(cp.length&&Math.random()<.5?cp:ms)[Math.random()*(cp.length&&Math.random()<.5?cp:ms).length|0]||ms[0]}
+const d=mode=='mid'?2:3;let best=-1e9,bm=ms[0];ms.sort((x,y)=>sc(s,y)-sc(s,x));
+for(const m of ms){const v=-nm(app(s,m),d-1,-1e9,-Math.max(best,-1e9))+(mode=='mid'?Math.random()*15:0);if(v>best){best=v;bm=m}}
+return bm}
+let S,hist,last,sel,mv,bad=-1,over,busy,msg='';
+const bd=document.getElementById('bd'),st=document.getElementById('st'),hint=document.getElementById('hint'),mode=document.getElementById('mode');
+function start(){S=init();hist=[];last=null;sel=null;over=false;busy=false;msg='';mv=legal(S);render()}
+function render(){const ck=inChk(S)?S.b.indexOf(S.t+'K'):-1;let h='';
+for(let i=0;i<64;i++){const p=S.b[i];let k='sq '+(((i>>3)+(i&7))%2?'d':'l');
+if(last&&(i==last.f||i==last.t))k+=' last';if(i==ck)k+=' chk';if(i==sel)k+=' sel';
+if(hint.checked&&sel!=null&&mv.some(m=>m.f==sel&&m.t==i))k+=' hint'+(p?' cap':'');
+if(i==bad)k+=' bad';
+h+=`<div class="${k}" data-i="${i}">${p?`<span class="${p[0]}">${G[p[1]]}\uFE0E</span>`:''}</div>`}
+bd.innerHTML=h;
+st.textContent=msg||(over?'':busy?'Computer is thinking…':'Your turn (White)'+(ck>=0?' — Check!':''))}
+function flash(i,t){bad=i;msg=t;render();setTimeout(()=>{bad=-1;msg='';render()},800)}
+function play(m){hist.push({s:S,last});S=app(S,m);last=m;sel=null;mv=legal(S);
+if(!mv.length){over=true;msg=inChk(S)?(S.t=='b'?'Checkmate! You win 🎉':'Checkmate. Computer wins.'):'Stalemate — draw.';render();return}
+if(S.t=='b'){busy=true;render();setTimeout(()=>{play(pick(S,mode.value));busy=false;if(!over)render()},60)}else render()}
+bd.onclick=e=>{const q=e.target.closest('.sq');if(!q||over||busy||S.t!='w')return;const i=+q.dataset.i,p=S.b[i];
+if(sel!=null){const m=mv.find(x=>x.f==sel&&x.t==i);if(m)return play(m);
+if(p&&p[0]=='w'){sel=i;return render()}
+return flash(i,'❌ Wrong move')}
+if(p&&p[0]=='w'){sel=i;render()}else if(p)flash(i,'❌ Select your own piece')};
+document.getElementById('new').onclick=start;
+document.getElementById('undo').onclick=()=>{if(busy||!hist.length)return;do{const h=hist.pop();S=h.s;last=h.last}while(hist.length&&S.t!='w');over=false;msg='';sel=null;mv=legal(S);render()};
+mode.onchange=()=>{hint.checked=mode.value=='easy';start()};
+hint.onchange=render;
+start();
+</script></body></html>
